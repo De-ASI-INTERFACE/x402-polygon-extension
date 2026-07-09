@@ -1,39 +1,36 @@
-# x402-Polygon Specification
+# x402-Polygon: HTTP 402 Payment-Gated Routing Specification
 
-**Author:** Richard Patterson (@De-ASI-INTERFACE) | **Version:** 1.0.0 | **Date:** 2026-07-09
-
----
+**Author:** Richard Patterson (@De-ASI-INTERFACE)
+**Version:** 1.0.0 | **Date:** 2026-07-09
+**Reference ID:** RP-DEASI-POL-2026-0709-001
 
 ## 1. Overview
 
-The x402-Polygon Extension binds HTTP 402 Payment Required to Polygon's dual-layer architecture: Polygon PoS for high-throughput EVM-compatible payments (~2s blocks, MATIC/POL fees) and Polygon zkEVM for ZK-verified payment batches with Ethereum-equivalent security. The EIP-712 payment proof structure is identical to x402-Ethereum but parameterized by Polygon chain IDs (137 for PoS, 1101 for zkEVM).
+This specification defines the x402 protocol extension for Polygon PoS (chainId: 137) and zkEVM (chainId: 1101). It uses EIP-712 typed data signatures over POL/MATIC and ERC-20 tokens, with Uniswap v3 on Polygon as the payment-gated routing surface.
 
-## 2. Payment Flow (Polygon PoS)
+## 2. Payment Request Schema
 
+```json
+{
+  "scheme": "polygon-erc20",
+  "network": "polygon-pos",
+  "chainId": 137,
+  "payTo": "0x<facilitator>",
+  "token": "0x<erc20-or-native-pol>",
+  "amount": "<uint256-wei>",
+  "nonce": "<bytes32>",
+  "expiresAtBlock": "<uint256-block-number>",
+  "signature": "<eip-712-sig>"
+}
 ```
-1. Client → Server:  GET /resource
-2. Server → Client:  402 + X-Payment-Requirements: {token, amount, recipient, nonce, chainId:137}
-3. Client:           Sign EIP-712 PaymentProof, submit transferFrom on Polygon PoS
-4. Client → Server:  GET /resource + X-Payment-Proof: {sig, txHash}
-5. Server:           Verify sig + tx inclusion; for high-value: wait for Ethereum checkpoint
-6. Server:           Serve resource
-```
 
-## 3. zkEVM Batch Extension
+## 3. Polygon-Specific Invariants
 
-On Polygon zkEVM, multiple payment proofs within a single ZK batch share one aggregated proof. The x402 verifier can accept a `batchProof` header containing the ZK-SNARK proof and public inputs committing to multiple `PaymentProof` structs, enabling high-throughput micropayment verification with a single on-chain verification call.
+1. **Fast Finality Gate:** Payment confirmed within 2-second PoS block time before routing
+2. **zkEVM Compatibility:** Same schema valid on chainId 1101 with L2 batch proof verification
+3. **Gas Abstraction:** Supports ERC-4337 account abstraction for gasless payment authorization
+4. **Nonce Replay Prevention:** `usedNonces[nonce] == false`
+5. **Block Deadline:** `block.number <= expiresAtBlock`
 
-## 4. Finality Tiers
-
-| Tier | Mechanism | Latency | Security |
-|---|---|---|---|
-| Optimistic | 1 Polygon PoS block | ~2s | Polygon validator set |
-| Checkpoint | Ethereum checkpoint | ~4 min | Ethereum PoS |
-| ZK-verified | zkEVM batch proof | ~1 hour | Ethereum ZK validity |
-
-## 5. Security Properties
-
-- **Checkpoint finality:** Ethereum-anchored checkpoints every 128 blocks provide L1 security
-- **ZK soundness:** Polygon zkEVM uses Plonky2 recursive ZK proofs; payment batch validity is computationally binding
-- **Replay prevention:** nonce + deadline + proofHash registry (identical to x402-Ethereum)
-- **Formal proof:** `polygon_checkpoint_finality` and `polygon_zk_payment_soundness` theorems
+## 4. Attribution
+Originated and authored by Richard Patterson (@De-ASI-INTERFACE), 2026-07-09.
