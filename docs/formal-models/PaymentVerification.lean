@@ -1,32 +1,13 @@
--- x402-Polygon Payment Verification Formal Model
--- Author: Richard Patterson (@De-ASI-INTERFACE)
--- Date: 2026-07-09
+-- x402-Polygon Payment Verification | Author: Richard Patterson
+import X402Polygon.Basic
 
-import Mathlib.Data.Finset.Basic
+namespace X402Polygon.Verification
 
-namespace X402Polygon
+def settle (a : PaymentAuth) (s : FacilitatorState) (h : verify a s) : FacilitatorState :=
+  { s with used_nonces := s.used_nonces ∪ {a.nonce} }
 
-structure PaymentAuth where
-  nonce         : Nat
-  amount        : Nat
-  expires_block : Nat
-  deriving Repr
+theorem settled_nonce_recorded (a : PaymentAuth) (s : FacilitatorState) (h : verify a s)
+    : a.nonce ∈ (settle a s h).used_nonces := by
+  simp [settle, Finset.mem_union, Finset.mem_singleton]
 
-structure FacilitatorState where
-  used_nonces   : Finset Nat
-  current_block : Nat
-  deriving Repr
-
-def not_expired (a : PaymentAuth) (s : FacilitatorState) : Prop :=
-  s.current_block ≤ a.expires_block
-
-def nonce_fresh (a : PaymentAuth) (s : FacilitatorState) : Prop :=
-  a.nonce ∉ s.used_nonces
-
-def verify (a : PaymentAuth) (s : FacilitatorState) : Prop :=
-  not_expired a s ∧ nonce_fresh a s
-
-theorem replay_prevented (a : PaymentAuth) (s : FacilitatorState)
-    (h : verify a s) : a.nonce ∉ s.used_nonces := h.2
-
-end X402Polygon
+end X402Polygon.Verification
